@@ -31,6 +31,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	r.Post("/wallets", cfg.Handler.CreateWallet)
 	r.Get("/wallets/{walletID}", cfg.Handler.GetWallet)
 	r.Get("/wallets/{walletID}/balance", cfg.Handler.GetBalance)
+	r.Post("/wallets/{walletID}/deposit", cfg.Handler.DepositMoney)
+	r.Post("/wallets/{walletID}/withdraw", cfg.Handler.WithdrawMoney)
+	r.Post("/wallets/transfer", cfg.Handler.TransferMoney)
 
 	return r
 }

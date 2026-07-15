@@ -11,10 +11,12 @@ import (
 )
 
 type Querier interface {
+	ApplyNewBalance(ctx context.Context, arg ApplyNewBalanceParams) (WalletBalance, error)
 	// internal/db/sqlc/queries.sql
 	CreateWallet(ctx context.Context, arg CreateWalletParams) (Wallet, error)
 	CreateWalletBalance(ctx context.Context, arg CreateWalletBalanceParams) (WalletBalance, error)
 	GetBalanceByWalletID(ctx context.Context, walletID uuid.UUID) (WalletBalance, error)
+	GetBalanceByWalletIDForUpdate(ctx context.Context, walletID uuid.UUID) (WalletBalance, error)
 	GetWalletByID(ctx context.Context, id uuid.UUID) (Wallet, error)
 	UpdateBalance(ctx context.Context, arg UpdateBalanceParams) (WalletBalance, error)
 }

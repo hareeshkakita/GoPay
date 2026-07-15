@@ -30,3 +30,11 @@ func (s *WalletService) GetWallet(ctx context.Context, walletID uuid.UUID) (dbsq
 func (s *WalletService) GetBalance(ctx context.Context, walletID uuid.UUID) (dbsqlc.WalletBalance, error) {
 	return s.repo.GetBalanceByWalletID(ctx, walletID)
 }
+
+func (s *WalletService) UpdateBalanceByWalletID(ctx context.Context, updatedBalance dbsqlc.ApplyNewBalanceParams) (dbsqlc.WalletBalance, error) {
+	return s.repo.UpdateBalanceByWalletID(ctx, updatedBalance)
+}
+
+func (s *WalletService) TransferAmount(ctx context.Context, source uuid.UUID, target uuid.UUID, amount int64) (dbsqlc.WalletBalance, dbsqlc.WalletBalance, error) {
+	return s.repo.TransferAmount(ctx, source, target, amount)
+}

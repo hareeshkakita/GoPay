@@ -11,6 +11,34 @@ import (
 	"github.com/google/uuid"
 )
 
+const applyNewBalance = `-- name: ApplyNewBalance :one
+UPDATE wallet_balances
+SET available_balance = available_balance + $2,
+    updated_at = NOW()
+WHERE wallet_id = $1
+RETURNING id, wallet_id, available_balance, pending_balance, currency, created_at, updated_at
+`
+
+type ApplyNewBalanceParams struct {
+	WalletID         uuid.UUID `json:"wallet_id"`
+	AvailableBalance int64     `json:"available_balance"`
+}
+
+func (q *Queries) ApplyNewBalance(ctx context.Context, arg ApplyNewBalanceParams) (WalletBalance, error) {
+	row := q.db.QueryRowContext(ctx, applyNewBalance, arg.WalletID, arg.AvailableBalance)
+	var i WalletBalance
+	err := row.Scan(
+		&i.ID,
+		&i.WalletID,
+		&i.AvailableBalance,
+		&i.PendingBalance,
+		&i.Currency,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createWallet = `-- name: CreateWallet :one
 
 INSERT INTO wallets (id, owner_id, currency)
@@ -82,6 +110,29 @@ LIMIT 1
 
 func (q *Queries) GetBalanceByWalletID(ctx context.Context, walletID uuid.UUID) (WalletBalance, error) {
 	row := q.db.QueryRowContext(ctx, getBalanceByWalletID, walletID)
+	var i WalletBalance
+	err := row.Scan(
+		&i.ID,
+		&i.WalletID,
+		&i.AvailableBalance,
+		&i.PendingBalance,
+		&i.Currency,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getBalanceByWalletIDForUpdate = `-- name: GetBalanceByWalletIDForUpdate :one
+SELECT id, wallet_id, available_balance, pending_balance, currency, created_at, updated_at
+FROM wallet_balances
+WHERE wallet_id = $1
+FOR UPDATE
+LIMIT 1
+`
+
+func (q *Queries) GetBalanceByWalletIDForUpdate(ctx context.Context, walletID uuid.UUID) (WalletBalance, error) {
+	row := q.db.QueryRowContext(ctx, getBalanceByWalletIDForUpdate, walletID)
 	var i WalletBalance
 	err := row.Scan(
 		&i.ID,

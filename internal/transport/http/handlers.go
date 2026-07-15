@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	dbsqlc "github.com/hareeshkakita/gopay/internal/db/sqlc/gen"
 	"github.com/hareeshkakita/gopay/internal/service"
 )
 
@@ -39,6 +40,34 @@ type balanceResponse struct {
 	AvailableBalance int64  `json:"available_balance"`
 	PendingBalance   int64  `json:"pending_balance"`
 	Currency         string `json:"currency"`
+}
+
+type depositMoneyRequest struct {
+	Amount int64 `json:"amount"`
+}
+
+type depositMoneyResponse struct {
+	WalletID         string `json:"wallet_id"`
+	AvailableBalance int64  `json:"available_balance"`
+}
+
+type withdrawMoneyRequest struct {
+	Amount int64 `json:"amount"`
+}
+
+type withdrawMoneyResponse struct {
+	WalletID         string `json:"wallet_id"`
+	AvailableBalance int64  `json:"available_balance"`
+}
+
+type transferMoneyRequest struct {
+	Source         string `json:"source_wallet_id"`
+	Target         string `json:"target_wallet_id"`
+	Amount int64 `json:"amount"`
+}
+
+type transferMoneyResponse struct {
+	WalletBalance         []balanceResponse `json:"wallet_balance"`
 }
 
 func (h *Handler) CreateWallet(w http.ResponseWriter, r *http.Request) {
@@ -113,5 +142,98 @@ func (h *Handler) GetBalance(w http.ResponseWriter, r *http.Request) {
 		AvailableBalance: balance.AvailableBalance,
 		PendingBalance:   balance.PendingBalance,
 		Currency:         balance.Currency,
+	})
+}
+
+func (h *Handler) DepositMoney(w http.ResponseWriter, r *http.Request) {
+	var req depositMoneyRequest
+	walletID, err := uuid.Parse(chi.URLParam(r, "walletID"))
+	if err != nil {
+		http.Error(w, "invalid wallet id", http.StatusBadRequest)
+		return
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	updatedBalance, err := h.service.UpdateBalanceByWalletID(r.Context(), dbsqlc.ApplyNewBalanceParams{
+		WalletID:         walletID,
+		AvailableBalance: req.Amount,
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(depositMoneyResponse{
+		WalletID:         walletID.String(),
+		AvailableBalance: updatedBalance.AvailableBalance,
+	})
+}
+
+func (h *Handler) WithdrawMoney(w http.ResponseWriter, r *http.Request) {
+	var req withdrawMoneyRequest
+	walletID, err := uuid.Parse(chi.URLParam(r, "walletID"))
+	if err != nil {
+		http.Error(w, "invalid wallet id", http.StatusBadRequest)
+		return
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	updatedBalance, err := h.service.UpdateBalanceByWalletID(r.Context(), dbsqlc.ApplyNewBalanceParams{
+		WalletID:         walletID,
+		AvailableBalance: -1 * req.Amount,
+	})
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(withdrawMoneyResponse{
+		WalletID:         walletID.String(),
+		AvailableBalance: updatedBalance.AvailableBalance,
+	})
+}
+
+func (h *Handler) TransferMoney(w http.ResponseWriter, r *http.Request) {
+	var req transferMoneyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	source,err := uuid.Parse(req.Source)
+	target,err := uuid.Parse(req.Target)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	sourceBalance , targetBalance, err := h.service.TransferAmount(r.Context(),source,target,req.Amount)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var updatedBalances = []balanceResponse{{WalletID:         sourceBalance.WalletID.String(),
+		AvailableBalance: sourceBalance.AvailableBalance,
+		PendingBalance:   sourceBalance.PendingBalance,
+		Currency:         sourceBalance.Currency,
+		},{WalletID:         targetBalance.WalletID.String(),
+		AvailableBalance: targetBalance.AvailableBalance,
+		PendingBalance:   targetBalance.PendingBalance,
+		Currency:         targetBalance.Currency,
+		}}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(transferMoneyResponse{
+		WalletBalance : updatedBalances,
 	})
 }

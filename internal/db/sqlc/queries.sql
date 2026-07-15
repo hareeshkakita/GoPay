@@ -29,3 +29,17 @@ SET available_balance = $2,
     updated_at = NOW()
 WHERE wallet_id = $1
 RETURNING *;
+
+-- name: ApplyNewBalance :one
+UPDATE wallet_balances
+SET available_balance = available_balance + $2,
+    updated_at = NOW()
+WHERE wallet_id = $1
+RETURNING *;
+
+-- name: GetBalanceByWalletIDForUpdate :one
+SELECT *
+FROM wallet_balances
+WHERE wallet_id = $1
+FOR UPDATE
+LIMIT 1;
