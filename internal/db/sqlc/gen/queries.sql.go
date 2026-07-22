@@ -39,6 +39,67 @@ func (q *Queries) ApplyNewBalance(ctx context.Context, arg ApplyNewBalanceParams
 	return i, err
 }
 
+const createLedgerEntry = `-- name: CreateLedgerEntry :exec
+INSERT INTO ledger_entries(
+    id,
+    transaction_id,
+    wallet_id,
+    entry_type,
+    amount
+)
+VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5
+)
+`
+
+type CreateLedgerEntryParams struct {
+	ID            uuid.UUID `json:"id"`
+	TransactionID uuid.UUID `json:"transaction_id"`
+	WalletID      uuid.UUID `json:"wallet_id"`
+	EntryType     string    `json:"entry_type"`
+	Amount        int64     `json:"amount"`
+}
+
+func (q *Queries) CreateLedgerEntry(ctx context.Context, arg CreateLedgerEntryParams) error {
+	_, err := q.db.ExecContext(ctx, createLedgerEntry,
+		arg.ID,
+		arg.TransactionID,
+		arg.WalletID,
+		arg.EntryType,
+		arg.Amount,
+	)
+	return err
+}
+
+const createTransaction = `-- name: CreateTransaction :exec
+
+INSERT INTO transactions(
+    id,
+    type,
+    status
+)
+VALUES (
+    $1,
+    $2,
+    $3
+)
+`
+
+type CreateTransactionParams struct {
+	ID     uuid.UUID `json:"id"`
+	Type   string    `json:"type"`
+	Status string    `json:"status"`
+}
+
+func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionParams) error {
+	_, err := q.db.ExecContext(ctx, createTransaction, arg.ID, arg.Type, arg.Status)
+	return err
+}
+
 const createWallet = `-- name: CreateWallet :one
 
 INSERT INTO wallets (id, owner_id, currency)
@@ -146,6 +207,63 @@ func (q *Queries) GetBalanceByWalletIDForUpdate(ctx context.Context, walletID uu
 	return i, err
 }
 
+const getLedgerEntriesByTransactionID = `-- name: GetLedgerEntriesByTransactionID :many
+SELECT id, transaction_id, wallet_id, entry_type, amount, created_at
+FROM ledger_entries
+WHERE transaction_id = $1
+`
+
+func (q *Queries) GetLedgerEntriesByTransactionID(ctx context.Context, transactionID uuid.UUID) ([]LedgerEntry, error) {
+	rows, err := q.db.QueryContext(ctx, getLedgerEntriesByTransactionID, transactionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LedgerEntry
+	for rows.Next() {
+		var i LedgerEntry
+		if err := rows.Scan(
+			&i.ID,
+			&i.TransactionID,
+			&i.WalletID,
+			&i.EntryType,
+			&i.Amount,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTransactionByID = `-- name: GetTransactionByID :one
+SELECT id, reference, type, status, created_at, completed_at
+FROM transactions
+WHERE id = $1
+LIMIT 1
+`
+
+func (q *Queries) GetTransactionByID(ctx context.Context, id uuid.UUID) (Transaction, error) {
+	row := q.db.QueryRowContext(ctx, getTransactionByID, id)
+	var i Transaction
+	err := row.Scan(
+		&i.ID,
+		&i.Reference,
+		&i.Type,
+		&i.Status,
+		&i.CreatedAt,
+		&i.CompletedAt,
+	)
+	return i, err
+}
+
 const getWalletByID = `-- name: GetWalletByID :one
 SELECT id, owner_id, currency, created_at, updated_at
 FROM wallets
@@ -194,4 +312,21 @@ func (q *Queries) UpdateBalance(ctx context.Context, arg UpdateBalanceParams) (W
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const updateTransactionStatus = `-- name: UpdateTransactionStatus :exec
+UPDATE transactions
+SET status = $2,
+    completed_at = CASE WHEN $2 = 'COMPLETED' THEN NOW() ELSE NULL END
+WHERE id = $1
+`
+
+type UpdateTransactionStatusParams struct {
+	ID     uuid.UUID `json:"id"`
+	Status string    `json:"status"`
+}
+
+func (q *Queries) UpdateTransactionStatus(ctx context.Context, arg UpdateTransactionStatusParams) error {
+	_, err := q.db.ExecContext(ctx, updateTransactionStatus, arg.ID, arg.Status)
+	return err
 }

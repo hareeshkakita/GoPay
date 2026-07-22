@@ -26,20 +26,22 @@ func main() {
 
 	pool, err := db.NewPool(cfg.DatabaseURL)
 	if err != nil {
-		logger.Error("failed to create database pool", "error", err)
+		logger.Error("failed to open db", "error", err)
 		os.Exit(1)
 	}
 	defer pool.Close()
 
-	if err := pool.Ping(); err != nil {
-		logger.Error("failed to connect to database", "error", err)
+	if err := pool.PingContext(context.Background()); err != nil {
+		logger.Error("failed to ping db", "error", err)
 		os.Exit(1)
 	}
 
 	logger.Info("database connected", "env", cfg.Environment)
 
-	repo := repository.NewWalletRepository(pool)
-	svc := service.NewWalletService(repo)
+	walletRepo := repository.NewWalletRepository(pool)
+	transactionRepo := repository.NewTransactionRepository(pool)
+	ledgerRepo := repository.NewLedgerRepository(pool)
+	svc := service.NewWalletService(pool, walletRepo, transactionRepo, ledgerRepo)
 
 	router := httptransport.NewRouter(httptransport.RouterConfig{
 		Logger:  logger,

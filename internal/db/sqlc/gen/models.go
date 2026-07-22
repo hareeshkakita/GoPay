@@ -5,10 +5,29 @@
 package dbsqlc
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+type LedgerEntry struct {
+	ID            uuid.UUID `json:"id"`
+	TransactionID uuid.UUID `json:"transaction_id"`
+	WalletID      uuid.UUID `json:"wallet_id"`
+	EntryType     string    `json:"entry_type"`
+	Amount        int64     `json:"amount"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type Transaction struct {
+	ID          uuid.UUID      `json:"id"`
+	Reference   sql.NullString `json:"reference"`
+	Type        string         `json:"type"`
+	Status      string         `json:"status"`
+	CreatedAt   time.Time      `json:"created_at"`
+	CompletedAt sql.NullTime   `json:"completed_at"`
+}
 
 type Wallet struct {
 	ID        uuid.UUID `json:"id"`

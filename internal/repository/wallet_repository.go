@@ -9,26 +9,25 @@ import (
 	dbsqlc "github.com/hareeshkakita/gopay/internal/db/sqlc/gen"
 )
 
-type WalletRepository struct {
-	db      *sql.DB
+type WalletRepository interface {
+	CreateWallet(ctx context.Context, q *dbsqlc.Queries, ownerID uuid.UUID, currency string) (dbsqlc.Wallet, error)
+	GetWalletByID(ctx context.Context, walletID uuid.UUID) (dbsqlc.Wallet, error)
+	GetBalanceByWalletID(ctx context.Context, walletID uuid.UUID) (dbsqlc.WalletBalance, error)
+	UpdateBalanceByWalletID(ctx context.Context, q *dbsqlc.Queries, updatedBalance dbsqlc.ApplyNewBalanceParams) (dbsqlc.WalletBalance, error)
+	TransferAmount(ctx context.Context, q *dbsqlc.Queries, source uuid.UUID, target uuid.UUID, amount int64) (dbsqlc.WalletBalance, dbsqlc.WalletBalance, error)
+}
+
+type walletRepository struct {
 	queries *dbsqlc.Queries
 }
 
-func NewWalletRepository(db *sql.DB) *WalletRepository {
-	return &WalletRepository{
-		db:      db,
+func NewWalletRepository(db *sql.DB) WalletRepository {
+	return &walletRepository{
 		queries: dbsqlc.New(db),
 	}
 }
 
-func (r *WalletRepository) CreateWallet(ctx context.Context, ownerID uuid.UUID, currency string) (dbsqlc.Wallet, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return dbsqlc.Wallet{}, err
-	}
-	defer tx.Rollback()
-
-	q := r.queries.WithTx(tx)
+func (r *walletRepository) CreateWallet(ctx context.Context, q *dbsqlc.Queries, ownerID uuid.UUID, currency string) (dbsqlc.Wallet, error) {
 
 	wallet, err := q.CreateWallet(ctx, dbsqlc.CreateWalletParams{
 		ID:       uuid.New(),
@@ -50,29 +49,18 @@ func (r *WalletRepository) CreateWallet(ctx context.Context, ownerID uuid.UUID, 
 		return dbsqlc.Wallet{}, err
 	}
 
-	if err := tx.Commit(); err != nil {
-		return dbsqlc.Wallet{}, err
-	}
-
 	return wallet, nil
 }
 
-func (r *WalletRepository) GetWalletByID(ctx context.Context, walletID uuid.UUID) (dbsqlc.Wallet, error) {
+func (r *walletRepository) GetWalletByID(ctx context.Context, walletID uuid.UUID) (dbsqlc.Wallet, error) {
 	return r.queries.GetWalletByID(ctx, walletID)
 }
 
-func (r *WalletRepository) GetBalanceByWalletID(ctx context.Context, walletID uuid.UUID) (dbsqlc.WalletBalance, error) {
+func (r *walletRepository) GetBalanceByWalletID(ctx context.Context, walletID uuid.UUID) (dbsqlc.WalletBalance, error) {
 	return r.queries.GetBalanceByWalletID(ctx, walletID)
 }
 
-func (r *WalletRepository) UpdateBalanceByWalletID(ctx context.Context, updatedBalance dbsqlc.ApplyNewBalanceParams) (dbsqlc.WalletBalance, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return dbsqlc.WalletBalance{}, err
-	}
-	defer tx.Rollback()
-
-	q := r.queries.WithTx(tx)
+func (r *walletRepository) UpdateBalanceByWalletID(ctx context.Context, q *dbsqlc.Queries, updatedBalance dbsqlc.ApplyNewBalanceParams) (dbsqlc.WalletBalance, error) {
 
 	currentBalance, err := q.GetBalanceByWalletIDForUpdate(ctx, updatedBalance.WalletID)
 
@@ -90,21 +78,10 @@ func (r *WalletRepository) UpdateBalanceByWalletID(ctx context.Context, updatedB
 		return dbsqlc.WalletBalance{}, err
 	}
 
-	if err := tx.Commit(); err != nil {
-		return dbsqlc.WalletBalance{}, err
-	}
-
 	return balance, nil
 }
 
-func (r *WalletRepository) TransferAmount(ctx context.Context, source uuid.UUID, target uuid.UUID, amount int64) (dbsqlc.WalletBalance, dbsqlc.WalletBalance, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return dbsqlc.WalletBalance{}, dbsqlc.WalletBalance{}, err
-	}
-	defer tx.Rollback()
-
-	q := r.queries.WithTx(tx)
+func (r *walletRepository) TransferAmount(ctx context.Context, q *dbsqlc.Queries, source uuid.UUID, target uuid.UUID, amount int64) (dbsqlc.WalletBalance, dbsqlc.WalletBalance, error) {
 
 	first, second := lockOrder(source, target)
 
@@ -131,10 +108,6 @@ func (r *WalletRepository) TransferAmount(ctx context.Context, source uuid.UUID,
 	})
 
 	if err != nil {
-		return dbsqlc.WalletBalance{}, dbsqlc.WalletBalance{}, err
-	}
-
-	if err := tx.Commit(); err != nil {
 		return dbsqlc.WalletBalance{}, dbsqlc.WalletBalance{}, err
 	}
 

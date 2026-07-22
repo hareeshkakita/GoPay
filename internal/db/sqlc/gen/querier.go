@@ -12,13 +12,18 @@ import (
 
 type Querier interface {
 	ApplyNewBalance(ctx context.Context, arg ApplyNewBalanceParams) (WalletBalance, error)
+	CreateLedgerEntry(ctx context.Context, arg CreateLedgerEntryParams) error
+	CreateTransaction(ctx context.Context, arg CreateTransactionParams) error
 	// internal/db/sqlc/queries.sql
 	CreateWallet(ctx context.Context, arg CreateWalletParams) (Wallet, error)
 	CreateWalletBalance(ctx context.Context, arg CreateWalletBalanceParams) (WalletBalance, error)
 	GetBalanceByWalletID(ctx context.Context, walletID uuid.UUID) (WalletBalance, error)
 	GetBalanceByWalletIDForUpdate(ctx context.Context, walletID uuid.UUID) (WalletBalance, error)
+	GetLedgerEntriesByTransactionID(ctx context.Context, transactionID uuid.UUID) ([]LedgerEntry, error)
+	GetTransactionByID(ctx context.Context, id uuid.UUID) (Transaction, error)
 	GetWalletByID(ctx context.Context, id uuid.UUID) (Wallet, error)
 	UpdateBalance(ctx context.Context, arg UpdateBalanceParams) (WalletBalance, error)
+	UpdateTransactionStatus(ctx context.Context, arg UpdateTransactionStatusParams) error
 }
 
 var _ Querier = (*Queries)(nil)
